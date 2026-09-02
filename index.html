@@ -354,8 +354,11 @@ body, .hh-root {
   <!-- VISTA CALENDARIO -->
   <div id="view-calendario" class="hh-view">
     <div class="hh-add">
-      <input type="text" id="cal-title" placeholder="Título (ej. Cumpleaños, Lavar baño...)" />
-      <input type="date" id="cal-date" style="max-width:150px;" />
+      <input type="text" id="cal-title" placeholder="Título (ej. Cumpleaños, Vacaciones...)" />
+    </div>
+    <div class="hh-add">
+      <input type="date" id="cal-date" title="Desde" style="max-width:150px;" />
+      <input type="date" id="cal-end-date" title="Hasta (opcional, para rangos como vacaciones)" style="max-width:150px;" />
     </div>
     <div class="hh-add">
       <select id="cal-type">
@@ -379,6 +382,7 @@ body, .hh-root {
       </label>
       <button class="hh-btn" id="cal-add-btn">Agregar</button>
     </div>
+    <div style="font-size:12px; color:var(--ink-soft); margin:-14px 0 20px;">Si completas "Hasta", el evento se pinta como rango de varios días y no se repite (ej. vacaciones).</div>
 
     <div class="hh-cal-nav">
       <button id="cal-prev">‹</button>
@@ -781,8 +785,13 @@ body, .hh-root {
   }
 
   // ---------- CALENDARIO ----------
-  function addEvent(title, date, who, type, repeat, alternate) {
-    state.events.push({ id: uid(), title, date, who, type, repeat, alternate: !!alternate });
+  function addEvent(title, date, who, type, repeat, alternate, endDate) {
+    state.events.push({
+      id: uid(), title, date, who, type,
+      repeat: endDate ? 'none' : repeat, // los rangos no se repiten
+      alternate: endDate ? false : !!alternate,
+      endDate: endDate || null
+    });
     save(); renderAll();
   }
   function deleteEvent(id) {
@@ -790,10 +799,22 @@ body, .hh-root {
     save(); renderAll();
   }
 
-  // Genera las ocurrencias (reales o repetidas) de un evento dentro de un rango de fechas [from, to]
+  // Genera las ocurrencias (reales, en rango, o repetidas) de un evento dentro de [from, to]
   function occurrencesInRange(ev, from, to) {
     const base = parseISODate(ev.date);
     const results = [];
+
+    if (ev.endDate) {
+      // Evento de rango (ej. vacaciones): un "día" por cada día del rango que caiga dentro de [from, to]
+      const end = parseISODate(ev.endDate);
+      let cursor = new Date(base > from ? base : from);
+      const limit = end < to ? end : to;
+      while (cursor <= limit) {
+        results.push({ date: new Date(cursor), who: ev.who, index: 0, isRange: true });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return results;
+    }
     if (ev.repeat === 'none') {
       if (base >= from && base <= to) results.push({ date: base, who: ev.who, index: 0 });
       return results;
@@ -910,11 +931,25 @@ body, .hh-root {
     // Lista de próximos 30 días (desde hoy)
     const today = new Date(); today.setHours(0,0,0,0);
     const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+    const shortDate = d => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
     const upcoming = [];
     state.events.forEach(ev => {
-      occurrencesInRange(ev, today, in30).forEach(occ => {
-        upcoming.push({ date: occ.date, title: ev.title, who: occ.who, type: ev.type, sourceId: ev.id, canDelete: true });
-      });
+      if (ev.endDate) {
+        // Evento de rango: una sola fila con "desde - hasta", si el rango se solapa con la ventana de 30 días
+        const start = parseISODate(ev.date);
+        const end = parseISODate(ev.endDate);
+        if (end >= today && start <= in30) {
+          upcoming.push({
+            date: start,
+            title: `${ev.title} (${shortDate(start)} – ${shortDate(end)})`,
+            who: ev.who, type: ev.type, sourceId: ev.id, canDelete: true
+          });
+        }
+      } else {
+        occurrencesInRange(ev, today, in30).forEach(occ => {
+          upcoming.push({ date: occ.date, title: ev.title, who: occ.who, type: ev.type, sourceId: ev.id, canDelete: true });
+        });
+      }
     });
     state.tasks.filter(t => t.dueDate && !t.done).forEach(t => {
       const d = parseISODate(t.dueDate);
@@ -1039,14 +1074,17 @@ body, .hh-root {
   document.getElementById('cal-add-btn').onclick = () => {
     const title = document.getElementById('cal-title').value.trim();
     const date = document.getElementById('cal-date').value;
+    const endDate = document.getElementById('cal-end-date').value;
     const type = document.getElementById('cal-type').value;
     const who = document.getElementById('cal-who').value;
     const repeat = document.getElementById('cal-repeat').value;
     const alternate = document.getElementById('cal-alternate').checked;
     if (!title || !date) return;
-    addEvent(title, date, who, type, repeat, alternate);
+    if (endDate && endDate < date) { alert('La fecha "Hasta" no puede ser anterior a "Desde".'); return; }
+    addEvent(title, date, who, type, repeat, alternate, endDate);
     document.getElementById('cal-title').value = '';
     document.getElementById('cal-date').value = '';
+    document.getElementById('cal-end-date').value = '';
     document.getElementById('cal-alternate').checked = false;
   };
   document.getElementById('cal-prev').onclick = () => {
