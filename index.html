@@ -180,6 +180,38 @@ body, .hh-root {
 .hh-section-label:first-child { margin-top: 0; }
 
 .hh-note { font-size: 12px; color: var(--ink-soft); text-align: center; margin-top: 28px; }
+
+/* Calendario */
+.hh-cal-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.hh-cal-nav button {
+  background: none; border: 1px solid var(--line); border-radius: 8px;
+  width: 34px; height: 34px; font-size: 16px; color: var(--ink-soft); cursor: pointer;
+}
+.hh-cal-nav button:hover { border-color: var(--sage); color: var(--ink); }
+.hh-cal-month { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; text-transform: capitalize; }
+
+.hh-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 28px; }
+.hh-cal-dow { font-size: 11px; color: var(--ink-soft); text-align: center; padding-bottom: 4px; font-weight: 500; }
+.hh-cal-day {
+  min-height: 58px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 5px;
+  background: var(--panel); overflow: hidden;
+}
+.hh-cal-day.empty { border-color: transparent; background: transparent; }
+.hh-cal-day.today { border-color: var(--sage); border-width: 2px; }
+.hh-cal-daynum { font-size: 12px; font-weight: 500; color: var(--ink-soft); margin-bottom: 3px; }
+.hh-cal-day.today .hh-cal-daynum { color: var(--sage); font-weight: 600; }
+.hh-cal-item {
+  font-size: 10px; line-height: 1.3; margin-bottom: 1px; padding: 1px 4px; border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hh-cal-item.evento { background: var(--sage-soft); color: var(--ink); }
+.hh-cal-item.turno { background: var(--mustard-soft); color: var(--ink); }
+.hh-cal-item.tarea { background: var(--warn-soft); color: var(--ink); }
+
+.hh-upcoming-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.hh-upcoming-row:last-child { border-bottom: none; }
+.hh-upcoming-date { font-size: 12px; color: var(--ink-soft); min-width: 68px; }
+.hh-upcoming-title { flex: 1; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -195,6 +227,7 @@ body, .hh-root {
     <button class="hh-tab" data-view="inventario">Lo que hay</button>
     <button class="hh-tab" data-view="presupuesto">Presupuesto</button>
     <button class="hh-tab" data-view="pendientes">Pendientes</button>
+    <button class="hh-tab" data-view="calendario">Calendario</button>
   </div>
 
   <div class="hh-who">
@@ -298,6 +331,7 @@ body, .hh-root {
         <option value="mediano">Mediano plazo</option>
         <option value="largo">Largo plazo</option>
       </select>
+      <input type="date" id="tk-due" title="Fecha límite (opcional)" style="max-width:150px;" />
       <button class="hh-btn" id="tk-add-btn">Agregar pendiente</button>
     </div>
 
@@ -305,6 +339,47 @@ body, .hh-root {
 
     <button id="tk-done-toggle" class="hh-done-toggle" style="display:none;"></button>
     <div id="tk-done-list" style="display:none;"></div>
+  </div>
+
+  <!-- VISTA CALENDARIO -->
+  <div id="view-calendario" class="hh-view">
+    <div class="hh-add">
+      <input type="text" id="cal-title" placeholder="Título (ej. Cumpleaños, Lavar baño...)" />
+      <input type="date" id="cal-date" style="max-width:150px;" />
+    </div>
+    <div class="hh-add">
+      <select id="cal-type">
+        <option value="evento">Evento</option>
+        <option value="turno">Turno / tarea rotativa</option>
+      </select>
+      <select id="cal-who">
+        <option value="Paul">Paul</option>
+        <option value="Flo">Flo</option>
+        <option value="Ambos">Ambos</option>
+      </select>
+    </div>
+    <div class="hh-add hh-add-row-last">
+      <select id="cal-repeat">
+        <option value="none">No se repite</option>
+        <option value="weekly">Se repite cada semana</option>
+        <option value="monthly">Se repite cada mes</option>
+      </select>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-soft); white-space:nowrap;">
+        <input type="checkbox" id="cal-alternate" /> Alternar Paul/Flo
+      </label>
+      <button class="hh-btn" id="cal-add-btn">Agregar</button>
+    </div>
+
+    <div class="hh-cal-nav">
+      <button id="cal-prev">‹</button>
+      <span class="hh-cal-month" id="cal-month-label"></span>
+      <button id="cal-next">›</button>
+    </div>
+    <div class="hh-cal-grid" id="cal-grid"></div>
+
+    <div class="hh-section-label">Próximos 30 días</div>
+    <div id="cal-upcoming"></div>
+    <div id="cal-upcoming-empty" class="hh-empty" style="display:none;">No hay eventos ni turnos programados.</div>
   </div>
 
   <div class="hh-note">Herramienta compartida — cualquiera con este enlace puede verla y editarla.</div>
@@ -321,17 +396,21 @@ body, .hh-root {
   ];
   const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+  const DOW_ES = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
   let state = {
     items: [],
     expenses: [],
     inventory: [],
     tasks: [],
+    events: [],
     budgetAmount: 0,
     budgetMonthKey: currentMonthKey()
   };
   let currentWho = 'Paul';
   let showDone = false;
   let showDoneTasks = false;
+  let calViewDate = new Date(); // mes que se está mostrando en el calendario
 
   function currentMonthKey() {
     const d = new Date();
@@ -346,6 +425,13 @@ body, .hh-root {
   }
   function clp(n) {
     return '$' + Math.round(n).toLocaleString('es-CL');
+  }
+  function toISODate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function parseISODate(s) {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
   }
 
   async function load(silent) {
@@ -374,7 +460,9 @@ body, .hh-root {
     renderInventario();
     renderPresupuesto();
     renderPendientes();
+    renderCalendario();
   }
+
 
   // ---------- COMPRAS ----------
   function addItem(text, category, who) {
@@ -606,18 +694,18 @@ body, .hh-root {
   }
 
   // ---------- PENDIENTES ----------
-  function addTask(text, plazo, who) {
-    state.tasks.push({ id: uid(), text, plazo, who, done: false });
-    save(); renderPendientes();
+  function addTask(text, plazo, who, dueDate) {
+    state.tasks.push({ id: uid(), text, plazo, who, done: false, dueDate: dueDate || null });
+    save(); renderAll();
   }
   function toggleTask(id) {
     const t = state.tasks.find(t => t.id === id);
     if (t) t.done = !t.done;
-    save(); renderPendientes();
+    save(); renderAll();
   }
   function deleteTask(id) {
     state.tasks = state.tasks.filter(t => t.id !== id);
-    save(); renderPendientes();
+    save(); renderAll();
   }
   function renderPendientes() {
     const pending = state.tasks.filter(t => !t.done);
@@ -661,6 +749,12 @@ body, .hh-root {
     const text = document.createElement('div');
     text.className = 'hh-item-text'; text.textContent = t.text;
     div.append(check, text);
+    if (t.dueDate) {
+      const dueTag = document.createElement('div');
+      dueTag.className = 'hh-item-tag';
+      dueTag.textContent = parseISODate(t.dueDate).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
+      div.appendChild(dueTag);
+    }
     if (showPlazoTag) {
       const plazoTag = document.createElement('div');
       plazoTag.className = 'hh-item-tag';
@@ -674,6 +768,180 @@ body, .hh-root {
     del.onclick = () => deleteTask(t.id);
     div.append(by, del);
     return div;
+  }
+
+  // ---------- CALENDARIO ----------
+  function addEvent(title, date, who, type, repeat, alternate) {
+    state.events.push({ id: uid(), title, date, who, type, repeat, alternate: !!alternate });
+    save(); renderAll();
+  }
+  function deleteEvent(id) {
+    state.events = state.events.filter(e => e.id !== id);
+    save(); renderAll();
+  }
+
+  // Genera las ocurrencias (reales o repetidas) de un evento dentro de un rango de fechas [from, to]
+  function occurrencesInRange(ev, from, to) {
+    const base = parseISODate(ev.date);
+    const results = [];
+    if (ev.repeat === 'none') {
+      if (base >= from && base <= to) results.push({ date: base, who: ev.who, index: 0 });
+      return results;
+    }
+    if (ev.repeat === 'weekly') {
+      let cursor = new Date(base);
+      let index = 0;
+      // retrocede hasta antes del rango si el evento empezó antes
+      while (cursor < from) { cursor.setDate(cursor.getDate() + 7); index++; }
+      while (cursor <= to) {
+        let who = ev.who;
+        if (ev.alternate && (ev.who === 'Paul' || ev.who === 'Flo')) {
+          who = (index % 2 === 0) ? ev.who : (ev.who === 'Paul' ? 'Flo' : 'Paul');
+        }
+        results.push({ date: new Date(cursor), who, index });
+        cursor.setDate(cursor.getDate() + 7);
+        index++;
+      }
+      return results;
+    }
+    if (ev.repeat === 'monthly') {
+      let cursor = new Date(base);
+      let index = 0;
+      while (cursor < from) { cursor.setMonth(cursor.getMonth() + 1); index++; }
+      while (cursor <= to) {
+        let who = ev.who;
+        if (ev.alternate && (ev.who === 'Paul' || ev.who === 'Flo')) {
+          who = (index % 2 === 0) ? ev.who : (ev.who === 'Paul' ? 'Flo' : 'Paul');
+        }
+        results.push({ date: new Date(cursor), who, index });
+        cursor.setMonth(cursor.getMonth() + 1);
+        index++;
+      }
+      return results;
+    }
+    return results;
+  }
+
+  function renderCalendario() {
+    const year = calViewDate.getFullYear();
+    const month = calViewDate.getMonth();
+    document.getElementById('cal-month-label').textContent =
+      calViewDate.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+
+    const firstOfMonth = new Date(year, month, 1);
+    const lastOfMonth = new Date(year, month + 1, 0);
+    // Lunes como primer día de la semana
+    const startOffset = (firstOfMonth.getDay() + 6) % 7;
+    const gridStart = new Date(year, month, 1 - startOffset);
+    const totalCells = Math.ceil((startOffset + lastOfMonth.getDate()) / 7) * 7;
+    const gridEnd = new Date(year, month, 1 - startOffset + totalCells - 1);
+
+    // Recolecta ítems (eventos/turnos/tareas con fecha) dentro del rango visible
+    const dayMap = {}; // 'YYYY-MM-DD' -> [{label, type}]
+    function pushItem(dateObj, label, type) {
+      const key = toISODate(dateObj);
+      if (!dayMap[key]) dayMap[key] = [];
+      dayMap[key].push({ label, type });
+    }
+    state.events.forEach(ev => {
+      occurrencesInRange(ev, gridStart, gridEnd).forEach(occ => {
+        pushItem(occ.date, `${ev.title}${occ.who ? ' · ' + occ.who : ''}`, ev.type);
+      });
+    });
+    state.tasks.filter(t => t.dueDate && !t.done).forEach(t => {
+      const d = parseISODate(t.dueDate);
+      if (d >= gridStart && d <= gridEnd) pushItem(d, t.text, 'tarea');
+    });
+
+    // Dibuja la grilla
+    const gridEl = document.getElementById('cal-grid');
+    gridEl.innerHTML = '';
+    DOW_ES.forEach(d => {
+      const dow = document.createElement('div');
+      dow.className = 'hh-cal-dow';
+      dow.textContent = d;
+      gridEl.appendChild(dow);
+    });
+    const todayKey = toISODate(new Date());
+    let cursor = new Date(gridStart);
+    for (let i = 0; i < totalCells; i++) {
+      const cell = document.createElement('div');
+      const inMonth = cursor.getMonth() === month;
+      const key = toISODate(cursor);
+      cell.className = 'hh-cal-day' + (inMonth ? '' : ' empty') + (key === todayKey ? ' today' : '');
+      if (inMonth) {
+        const num = document.createElement('div');
+        num.className = 'hh-cal-daynum';
+        num.textContent = cursor.getDate();
+        cell.appendChild(num);
+        (dayMap[key] || []).slice(0, 3).forEach(it => {
+          const tag = document.createElement('div');
+          tag.className = 'hh-cal-item ' + it.type;
+          tag.textContent = it.label;
+          cell.appendChild(tag);
+        });
+        if ((dayMap[key] || []).length > 3) {
+          const more = document.createElement('div');
+          more.className = 'hh-cal-item';
+          more.style.background = 'transparent';
+          more.textContent = `+${dayMap[key].length - 3} más`;
+          cell.appendChild(more);
+        }
+      }
+      gridEl.appendChild(cell);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // Lista de próximos 30 días (desde hoy)
+    const today = new Date(); today.setHours(0,0,0,0);
+    const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+    const upcoming = [];
+    state.events.forEach(ev => {
+      occurrencesInRange(ev, today, in30).forEach(occ => {
+        upcoming.push({ date: occ.date, title: ev.title, who: occ.who, type: ev.type, sourceId: ev.id, canDelete: true });
+      });
+    });
+    state.tasks.filter(t => t.dueDate && !t.done).forEach(t => {
+      const d = parseISODate(t.dueDate);
+      if (d >= today && d <= in30) upcoming.push({ date: d, title: t.text, who: t.who, type: 'tarea', canDelete: false });
+    });
+    upcoming.sort((a, b) => a.date - b.date);
+
+    const upcomingEl = document.getElementById('cal-upcoming');
+    const upcomingEmptyEl = document.getElementById('cal-upcoming-empty');
+    upcomingEl.innerHTML = '';
+    if (upcoming.length === 0) {
+      upcomingEmptyEl.style.display = 'block';
+    } else {
+      upcomingEmptyEl.style.display = 'none';
+      upcoming.forEach(it => {
+        const row = document.createElement('div');
+        row.className = 'hh-upcoming-row';
+        const dateEl = document.createElement('div');
+        dateEl.className = 'hh-upcoming-date';
+        dateEl.textContent = it.date.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
+        const titleEl = document.createElement('div');
+        titleEl.className = 'hh-upcoming-title';
+        titleEl.textContent = it.title;
+        const tag = document.createElement('div');
+        tag.className = 'hh-item-tag' + (it.type === 'tarea' ? ' agotado' : '');
+        tag.textContent = it.type === 'evento' ? 'Evento' : it.type === 'turno' ? 'Turno' : 'Pendiente';
+        row.append(dateEl, titleEl, tag);
+        if (it.who) {
+          const by = document.createElement('div');
+          by.className = 'hh-item-by'; by.textContent = it.who;
+          row.appendChild(by);
+        }
+        if (it.canDelete) {
+          const del = document.createElement('button');
+          del.className = 'hh-del'; del.textContent = '✕';
+          del.title = 'Elimina todas las repeticiones futuras de este evento';
+          del.onclick = () => deleteEvent(it.sourceId);
+          row.appendChild(del);
+        }
+        upcomingEl.appendChild(row);
+      });
+    }
   }
 
   // ---------- EVENTOS ----------
@@ -741,11 +1009,35 @@ body, .hh-root {
   document.getElementById('tk-add-btn').onclick = () => {
     const text = document.getElementById('tk-text').value.trim();
     const plazo = document.getElementById('tk-plazo').value;
+    const due = document.getElementById('tk-due').value;
     if (!text) return;
-    addTask(text, plazo, currentWho);
+    addTask(text, plazo, currentWho, due);
     document.getElementById('tk-text').value = '';
+    document.getElementById('tk-due').value = '';
   };
   document.getElementById('tk-done-toggle').onclick = () => { showDoneTasks = !showDoneTasks; renderPendientes(); };
+
+  document.getElementById('cal-add-btn').onclick = () => {
+    const title = document.getElementById('cal-title').value.trim();
+    const date = document.getElementById('cal-date').value;
+    const type = document.getElementById('cal-type').value;
+    const who = document.getElementById('cal-who').value;
+    const repeat = document.getElementById('cal-repeat').value;
+    const alternate = document.getElementById('cal-alternate').checked;
+    if (!title || !date) return;
+    addEvent(title, date, who, type, repeat, alternate);
+    document.getElementById('cal-title').value = '';
+    document.getElementById('cal-date').value = '';
+    document.getElementById('cal-alternate').checked = false;
+  };
+  document.getElementById('cal-prev').onclick = () => {
+    calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
+    renderCalendario();
+  };
+  document.getElementById('cal-next').onclick = () => {
+    calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() + 1, 1);
+    renderCalendario();
+  };
 
   load();
 
