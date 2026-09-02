@@ -199,6 +199,14 @@ body, .hh-root {
 .hh-cal-nav button:hover { border-color: var(--sage); color: var(--ink); }
 .hh-cal-month { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; text-transform: capitalize; }
 
+.hh-cal-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+.hh-cal-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.hh-cal-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.hh-cal-legend-dot.paul { background: var(--paul); }
+.hh-cal-legend-dot.flo { background: var(--flo); }
+.hh-cal-legend-dot.ambos { background: var(--ambos); }
+.hh-cal-legend-dot.tarea { background: var(--warn); }
+
 .hh-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 28px; }
 .hh-cal-dow { font-size: 11px; color: var(--ink-soft); text-align: center; padding-bottom: 4px; font-weight: 500; }
 .hh-cal-day {
@@ -389,6 +397,14 @@ body, .hh-root {
       <span class="hh-cal-month" id="cal-month-label"></span>
       <button id="cal-next">›</button>
     </div>
+
+    <div class="hh-cal-legend">
+      <div class="hh-cal-legend-item"><span class="hh-cal-legend-dot paul"></span>Paul</div>
+      <div class="hh-cal-legend-item"><span class="hh-cal-legend-dot flo"></span>Flo</div>
+      <div class="hh-cal-legend-item"><span class="hh-cal-legend-dot ambos"></span>Ambos</div>
+      <div class="hh-cal-legend-item"><span class="hh-cal-legend-dot tarea"></span>Pendiente con fecha</div>
+    </div>
+
     <div class="hh-cal-grid" id="cal-grid"></div>
 
     <div class="hh-section-label">Próximos 30 días</div>
