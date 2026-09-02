@@ -20,6 +20,12 @@
   --done: #C9B9A8;
   --warn: #963226;
   --warn-soft: #F0D8CE;
+  --paul: #3E7A46;
+  --paul-soft: #DCEAD9;
+  --flo: #7A4A8F;
+  --flo-soft: #EADCF0;
+  --ambos: #35648F;
+  --ambos-soft: #D9E4EF;
 }
 
 * { box-sizing: border-box; }
@@ -138,6 +144,9 @@ body, .hh-root {
 .hh-item-by { font-size: 12px; color: white; background: var(--mustard); padding: 2px 8px; border-radius: 20px; flex-shrink: 0; }
 .hh-item-tag { font-size: 12px; color: var(--ink-soft); background: var(--sage-soft); padding: 2px 8px; border-radius: 20px; flex-shrink: 0; }
 .hh-item-tag.agotado { background: var(--warn-soft); color: var(--warn); }
+.hh-item-tag.who-paul { background: var(--paul-soft); color: var(--paul); }
+.hh-item-tag.who-flo { background: var(--flo-soft); color: var(--flo); }
+.hh-item-tag.who-ambos { background: var(--ambos-soft); color: var(--ambos); }
 
 .hh-del { border: none; background: none; color: var(--ink-soft); cursor: pointer; font-size: 16px; padding: 2px 4px; flex-shrink: 0; }
 .hh-del:hover { color: var(--warn); }
@@ -204,9 +213,10 @@ body, .hh-root {
   font-size: 10px; line-height: 1.3; margin-bottom: 1px; padding: 1px 4px; border-radius: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hh-cal-item.evento { background: var(--sage-soft); color: var(--ink); }
-.hh-cal-item.turno { background: var(--mustard-soft); color: var(--ink); }
-.hh-cal-item.tarea { background: var(--warn-soft); color: var(--ink); }
+.hh-cal-item.who-paul { background: var(--paul-soft); color: var(--paul); font-weight: 500; }
+.hh-cal-item.who-flo { background: var(--flo-soft); color: var(--flo); font-weight: 500; }
+.hh-cal-item.who-ambos { background: var(--ambos-soft); color: var(--ambos); font-weight: 500; }
+.hh-cal-item.tarea { background: var(--warn-soft); color: var(--warn); font-weight: 500; }
 
 .hh-upcoming-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
 .hh-upcoming-row:last-child { border-bottom: none; }
@@ -837,15 +847,20 @@ body, .hh-root {
     const gridEnd = new Date(year, month, 1 - startOffset + totalCells - 1);
 
     // Recolecta ítems (eventos/turnos/tareas con fecha) dentro del rango visible
-    const dayMap = {}; // 'YYYY-MM-DD' -> [{label, type}]
-    function pushItem(dateObj, label, type) {
+    function whoClass(who) {
+      if (who === 'Paul') return 'who-paul';
+      if (who === 'Flo') return 'who-flo';
+      return 'who-ambos';
+    }
+    const dayMap = {}; // 'YYYY-MM-DD' -> [{label, colorClass}]
+    function pushItem(dateObj, label, colorClass) {
       const key = toISODate(dateObj);
       if (!dayMap[key]) dayMap[key] = [];
-      dayMap[key].push({ label, type });
+      dayMap[key].push({ label, colorClass });
     }
     state.events.forEach(ev => {
       occurrencesInRange(ev, gridStart, gridEnd).forEach(occ => {
-        pushItem(occ.date, `${ev.title}${occ.who ? ' · ' + occ.who : ''}`, ev.type);
+        pushItem(occ.date, `${ev.title}${occ.who ? ' · ' + occ.who : ''}`, whoClass(occ.who));
       });
     });
     state.tasks.filter(t => t.dueDate && !t.done).forEach(t => {
@@ -876,7 +891,7 @@ body, .hh-root {
         cell.appendChild(num);
         (dayMap[key] || []).slice(0, 3).forEach(it => {
           const tag = document.createElement('div');
-          tag.className = 'hh-cal-item ' + it.type;
+          tag.className = 'hh-cal-item ' + it.colorClass;
           tag.textContent = it.label;
           cell.appendChild(tag);
         });
@@ -924,7 +939,11 @@ body, .hh-root {
         titleEl.className = 'hh-upcoming-title';
         titleEl.textContent = it.title;
         const tag = document.createElement('div');
-        tag.className = 'hh-item-tag' + (it.type === 'tarea' ? ' agotado' : '');
+        let colorClass = 'agotado';
+        if (it.type !== 'tarea') {
+          colorClass = it.who === 'Paul' ? 'who-paul' : it.who === 'Flo' ? 'who-flo' : 'who-ambos';
+        }
+        tag.className = 'hh-item-tag ' + colorClass;
         tag.textContent = it.type === 'evento' ? 'Evento' : it.type === 'turno' ? 'Turno' : 'Pendiente';
         row.append(dateEl, titleEl, tag);
         if (it.who) {
